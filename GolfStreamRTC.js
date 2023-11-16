@@ -60,7 +60,51 @@ callDoc.onSnapshot((onSnapshot)=>{
         const answerdescription  = new RTCSessionDescription(data.answer);
         pc.setRemoteDescription(answerdescription);
     }
-})
+});
+
+// when answered, add candidate to peer connection
+answerCandidates.onSnapshot(onSnapshot => {
+    onSnapshot.docChanges().forEach((change)=> {
+        if(change.type === 'added'){
+            const candidate = new RTCIceCandidate(change.doc.data());
+            pc.addIceCandidate(candidate);
+        }
+    });
+});
+
+
+// answer the call with the unique ID
+answerButto.onclick = async () => {
+    const callId = callInput.value;
+    const callDoc = firestore.Collection('calls').doc(callId);
+    const answerCandidates = callDoc.Collection('answerCandidates');
+
+    pc.onicecandidate = event => {
+        event.candidate && answerCandidates.add(event.candidate.toJSON());
+    };
+}
+const callData = (await callDoc.get()).data();
+
+const offerDescription = callData.offer;
+await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+const answerdescription = await pc.createAnswer();
+await pc.setLocalDescription(answerdescription);
+
+const answer = {
+type : answerdescription.type,
+sdp : answerdescription.sdp,
+};
+await callDoc.update({answer});
+
+offerCandidates.onSnapshot((snapshot) => {
+    snapshot.docChanges().forEach((changes) => {
+        console.log(change)
+        if(change.type === 'added'){
+            let data = change.doc.data();
+            pc.addIceCandidate(new RTCIceCandidate(data));
+        }
+    })
+});
 
 };
 
